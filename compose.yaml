@@ -1,0 +1,18 @@
+# Harold — personal assistant notification framework
+#
+# Usage:
+#   cp .env.example .env   # fill in your tokens and location
+#   docker compose up -d
+
+services:
+  harold:
+    image: ${IMAGE:-harold}
+    container_name: harold
+    build:
+      context: .
+      dockerfile: docker/Containerfile
+    env_file: .env
+    environment:
+      - TZ=${TZ:-Asia/Taipei}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    restart: unless-stopped
