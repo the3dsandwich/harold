@@ -40,7 +40,7 @@ describe('morningGreeting job', () => {
   it('returns formatted content with temperature and condition', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ current: { temperature_2m: 22.4, weathercode: 1 } }),
+      json: () => ({ current: { temperature_2m: 22.4, weathercode: 1 } }),
     }));
 
     const result = await morningGreeting.execute();
@@ -51,7 +51,7 @@ describe('morningGreeting job', () => {
   it('rounds temperature correctly', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ current: { temperature_2m: 18.7, weathercode: 2 } }),
+      json: () => ({ current: { temperature_2m: 18.7, weathercode: 2 } }),
     }));
 
     const result = await morningGreeting.execute();
@@ -61,7 +61,7 @@ describe('morningGreeting job', () => {
   it('enables summarize with a Harold-persona prompt', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ current: { temperature_2m: 25.0, weathercode: 0 } }),
+      json: () => ({ current: { temperature_2m: 25.0, weathercode: 0 } }),
     }));
 
     const result = await morningGreeting.execute();
@@ -82,7 +82,7 @@ describe('morningGreeting job', () => {
   it('uses LATITUDE and LONGITUDE env vars in the request URL', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ current: { temperature_2m: 10.0, weathercode: 3 } }),
+      json: () => ({ current: { temperature_2m: 10.0, weathercode: 3 } }),
     });
     vi.stubGlobal('fetch', fetchMock);
 

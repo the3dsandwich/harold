@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { MockInstance } from 'vitest';
 
 const startMock = vi.hoisted(() => vi.fn());
 
@@ -8,8 +9,8 @@ vi.mock('../src/lib/logger.js', () => ({
 }));
 
 describe('index entrypoint', () => {
-  let processOnSpy: ReturnType<typeof vi.spyOn>;
-  let processExitSpy: ReturnType<typeof vi.spyOn>;
+  let processOnSpy: MockInstance<typeof process.on>;
+  let processExitSpy: MockInstance<typeof process.exit>;
 
   beforeEach(() => {
     vi.resetModules();

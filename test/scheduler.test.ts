@@ -4,7 +4,7 @@ import type { JobResult } from '../src/types.js';
 const scheduleMock = vi.hoisted(() => vi.fn());
 const sendMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const humanizeMock = vi.hoisted(() => vi.fn().mockResolvedValue('Humanized message'));
-const executeMock = vi.hoisted(() => vi.fn<[], Promise<JobResult>>());
+const executeMock = vi.hoisted(() => vi.fn<() => Promise<JobResult>>());
 
 vi.mock('node-cron', () => ({ default: { schedule: scheduleMock } }));
 vi.mock('../src/lib/telegram.js', () => ({ send: sendMock }));
@@ -29,9 +29,62 @@ vi.mock('../src/jobs/index.js', () => ({
   },
 }));
 
-import { start } from '../src/scheduler.js';
+import { start, dispatch } from '../src/scheduler.js';
 
-describe('scheduler', () => {
+const fakeJob = {
+  id: 'fake-job',
+  description: 'Fake job for dispatch tests',
+  schedule: '0 7 * * *',
+  enabled: true,
+  execute: executeMock,
+};
+
+describe('dispatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('sends raw content when summarize is not present', async () => {
+    executeMock.mockResolvedValue({ content: 'raw output' });
+    await dispatch(fakeJob);
+    expect(sendMock).toHaveBeenCalledWith('raw output');
+    expect(humanizeMock).not.toHaveBeenCalled();
+  });
+
+  it('sends raw content when summarize.enabled is false', async () => {
+    executeMock.mockResolvedValue({
+      content: 'raw output',
+      summarize: { enabled: false, prompt: 'ignored' },
+    });
+    await dispatch(fakeJob);
+    expect(sendMock).toHaveBeenCalledWith('raw output');
+    expect(humanizeMock).not.toHaveBeenCalled();
+  });
+
+  it('passes content through gemini when summarize.enabled is true', async () => {
+    executeMock.mockResolvedValue({
+      content: 'raw output',
+      summarize: { enabled: true, prompt: 'Be friendly' },
+    });
+    await dispatch(fakeJob);
+    expect(humanizeMock).toHaveBeenCalledWith('raw output', 'Be friendly');
+    expect(sendMock).toHaveBeenCalledWith('Humanized message');
+  });
+
+  it('does not throw or send when job.execute() rejects', async () => {
+    executeMock.mockRejectedValue(new Error('network error'));
+    await expect(dispatch(fakeJob)).resolves.not.toThrow();
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it('does not throw when telegram.send() rejects', async () => {
+    executeMock.mockResolvedValue({ content: 'raw output' });
+    sendMock.mockRejectedValue(new Error('telegram down'));
+    await expect(dispatch(fakeJob)).resolves.not.toThrow();
+  });
+});
+
+describe('start', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -49,62 +102,5 @@ describe('scheduler', () => {
       expect.any(Function),
       expect.objectContaining({ timezone: 'Asia/Taipei' }),
     );
-  });
-
-  it('sends raw content when summarize is not enabled', async () => {
-    executeMock.mockResolvedValue({ content: 'raw output' });
-    start();
-
-    const callback = scheduleMock.mock.calls[0][1] as () => Promise<void>;
-    await callback();
-
-    expect(sendMock).toHaveBeenCalledWith('raw output');
-    expect(humanizeMock).not.toHaveBeenCalled();
-  });
-
-  it('sends raw content when summarize.enabled is false', async () => {
-    executeMock.mockResolvedValue({
-      content: 'raw output',
-      summarize: { enabled: false, prompt: 'ignored' },
-    });
-    start();
-
-    const callback = scheduleMock.mock.calls[0][1] as () => Promise<void>;
-    await callback();
-
-    expect(sendMock).toHaveBeenCalledWith('raw output');
-    expect(humanizeMock).not.toHaveBeenCalled();
-  });
-
-  it('passes content through gemini when summarize.enabled is true', async () => {
-    executeMock.mockResolvedValue({
-      content: 'raw output',
-      summarize: { enabled: true, prompt: 'Be friendly' },
-    });
-    start();
-
-    const callback = scheduleMock.mock.calls[0][1] as () => Promise<void>;
-    await callback();
-
-    expect(humanizeMock).toHaveBeenCalledWith('raw output', 'Be friendly');
-    expect(sendMock).toHaveBeenCalledWith('Humanized message');
-  });
-
-  it('does not crash or send when job.execute() throws', async () => {
-    executeMock.mockRejectedValue(new Error('network error'));
-    start();
-
-    const callback = scheduleMock.mock.calls[0][1] as () => Promise<void>;
-    await expect(callback()).resolves.not.toThrow();
-    expect(sendMock).not.toHaveBeenCalled();
-  });
-
-  it('does not crash or send when telegram.send() throws', async () => {
-    executeMock.mockResolvedValue({ content: 'raw output' });
-    sendMock.mockRejectedValue(new Error('telegram down'));
-    start();
-
-    const callback = scheduleMock.mock.calls[0][1] as () => Promise<void>;
-    await expect(callback()).resolves.not.toThrow();
   });
 });

@@ -5,8 +5,25 @@ import { humanize } from './lib/gemini.js';
 import { logger } from './lib/logger.js';
 import type { Job } from './types.js';
 
+export async function dispatch(job: Job): Promise<void> {
+  logger.info('scheduler', `${job.id} fired`);
+  try {
+    const result = await job.execute();
+
+    const text =
+      result.summarize?.enabled
+        ? await humanize(result.content, result.summarize.prompt)
+        : result.content;
+
+    await send(text);
+    logger.info('scheduler', `${job.id} sent | ${text.length} chars`);
+  } catch (err) {
+    logger.error('scheduler', `${job.id} failed: ${(err as Error).message}`);
+  }
+}
+
 export function start(): void {
-  const allJobs = Object.values(jobs) as Job[];
+  const allJobs = Object.values(jobs);
 
   for (const job of allJobs) {
     if (!job.enabled) {
@@ -18,22 +35,7 @@ export function start(): void {
 
     cron.schedule(
       job.schedule,
-      async () => {
-        logger.info('scheduler', `${job.id} fired`);
-        try {
-          const result = await job.execute();
-
-          const text =
-            result.summarize?.enabled
-              ? await humanize(result.content, result.summarize.prompt)
-              : result.content;
-
-          await send(text);
-          logger.info('scheduler', `${job.id} sent | ${text.length} chars`);
-        } catch (err) {
-          logger.error('scheduler', `${job.id} failed: ${(err as Error).message}`);
-        }
-      },
+      () => { void dispatch(job); },
       { timezone },
     );
 
