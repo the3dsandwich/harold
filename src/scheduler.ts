@@ -5,6 +5,13 @@ import { humanize } from './lib/gemini.js';
 import { logger } from './lib/logger.js';
 import type { Job } from './types.js';
 
+function formatError(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const cause = (err as Error & { cause?: unknown }).cause;
+  if (cause instanceof Error) return `${err.message}: ${cause.message}`;
+  return err.message;
+}
+
 /** Returns the text that was sent, or null if the job failed. */
 export async function dispatch(job: Job): Promise<string | null> {
   logger.info('scheduler', `${job.id} fired`);
@@ -20,7 +27,7 @@ export async function dispatch(job: Job): Promise<string | null> {
     logger.info('scheduler', `${job.id} sent | ${text.length} chars`);
     return text;
   } catch (err) {
-    logger.error('scheduler', `${job.id} failed: ${(err as Error).message}`);
+    logger.error('scheduler', `${job.id} failed: ${formatError(err)}`);
     return null;
   }
 }
