@@ -5,11 +5,14 @@ import { humanize } from './lib/gemini.js';
 import { logger } from './lib/logger.js';
 import type { Job } from './types.js';
 
-function formatError(err: unknown): string {
-  if (!(err instanceof Error)) return String(err);
-  const cause = (err as Error & { cause?: unknown }).cause;
-  if (cause instanceof Error) return `${err.message}: ${cause.message}`;
-  return err.message;
+export function formatError(err: unknown): string {
+  const parts: string[] = [];
+  let current: unknown = err;
+  while (current instanceof Error) {
+    if (current.message) parts.push(current.message);
+    current = (current as Error & { cause?: unknown }).cause;
+  }
+  return parts.length > 0 ? parts.join(': ') : String(err);
 }
 
 /** Returns the text that was sent, or null if the job failed. */

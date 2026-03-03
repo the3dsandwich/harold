@@ -29,7 +29,7 @@ vi.mock('../src/jobs/index.js', () => ({
   },
 }));
 
-import { start, dispatch } from '../src/scheduler.js';
+import { start, dispatch, formatError } from '../src/scheduler.js';
 
 const fakeJob = {
   id: 'fake-job',
@@ -38,6 +38,39 @@ const fakeJob = {
   enabled: true,
   execute: executeMock,
 };
+
+describe('formatError', () => {
+  it('returns the message for a plain Error', () => {
+    expect(formatError(new Error('something went wrong'))).toBe('something went wrong');
+  });
+
+  it('joins cause chain messages with colon separator', () => {
+    const root = new Error('root cause');
+    const mid = new Error('');
+    const top = new Error('fetch failed');
+    (mid as Error & { cause: unknown }).cause = root;
+    (top as Error & { cause: unknown }).cause = mid;
+    expect(formatError(top)).toBe('fetch failed: root cause');
+  });
+
+  it('skips empty messages in the cause chain', () => {
+    const inner = new Error('ENOTFOUND api.open-meteo.com');
+    const middle = new Error('');
+    const outer = new Error('fetch failed');
+    (middle as Error & { cause: unknown }).cause = inner;
+    (outer as Error & { cause: unknown }).cause = middle;
+    expect(formatError(outer)).toBe('fetch failed: ENOTFOUND api.open-meteo.com');
+  });
+
+  it('handles a single-level error with no cause', () => {
+    expect(formatError(new Error('simple error'))).toBe('simple error');
+  });
+
+  it('handles non-Error values', () => {
+    expect(formatError('a string error')).toBe('a string error');
+    expect(formatError(42)).toBe('42');
+  });
+});
 
 describe('dispatch', () => {
   beforeEach(() => {
