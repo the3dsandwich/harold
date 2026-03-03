@@ -63,7 +63,15 @@ export const morningGreeting: Job = {
     const condition = describeWeatherCode(data.current.weathercode);
 
     return {
-      content: `Good morning! It is ${temp}°C and ${condition} today.`,
+      summarize: {
+        content: `temperature: ${temp}°C, condition: ${condition}`,
+        prompt:
+          'You are Harold, a friendly and concise personal assistant. ' +
+          'The user has sent you a brief weather data snippet. ' +
+          'Write a warm good morning message (1-2 sentences) that naturally ' +
+          'incorporates the weather. Be conversational, not robotic.',
+        fallback: `Good morning! It is ${temp}°C and ${condition} today.`,
+      },
     };
   },
 };

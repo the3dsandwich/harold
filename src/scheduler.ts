@@ -26,10 +26,17 @@ export async function dispatch(job: Job): Promise<string | null> {
   try {
     const result = await job.execute();
 
-    const text =
-      result.summarize?.enabled
-        ? await humanize(result.content, result.summarize.prompt)
-        : result.content;
+    let text: string;
+    if ('summarize' in result) {
+      try {
+        text = await humanize(result.summarize.content, result.summarize.prompt);
+      } catch (err) {
+        logger.warn('scheduler', `${job.id} Gemini failed, using fallback: ${formatError(err)}`);
+        text = result.summarize.fallback;
+      }
+    } else {
+      text = result.content;
+    }
 
     await send(text);
     logger.info('scheduler', `${job.id} sent | ${text.length} chars`);

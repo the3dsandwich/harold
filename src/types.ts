@@ -18,16 +18,26 @@ export interface Job {
   execute(): Promise<JobResult>;
 }
 
-export interface JobResult {
-  /** Raw output from deterministic logic — the "meat" of the message */
-  content: string;
-  /**
-   * When present and enabled, passes content through Gemini before sending.
-   * Use this to turn structured data into a natural-language message.
-   */
-  summarize?: {
-    enabled: boolean;
-    /** System prompt given to Gemini. Should describe Harold's voice and intent. */
-    prompt: string;
-  };
-}
+/**
+ * What a job returns from execute().
+ *
+ * Two shapes:
+ *   - Direct: { content } — message is sent as-is, no LLM involved.
+ *   - Summarized: { summarize } — Harold attempts Gemini humanization.
+ *     If Gemini fails for any reason, summarize.fallback is sent instead.
+ */
+export type JobResult =
+  | {
+      /** Message delivered directly to Telegram. */
+      content: string;
+    }
+  | {
+      summarize: {
+        /** Raw data passed to Gemini as the user message. */
+        content: string;
+        /** System prompt describing Harold's voice and intent. */
+        prompt: string;
+        /** Delivered as-is when Gemini is unavailable or errors. */
+        fallback: string;
+      };
+    };

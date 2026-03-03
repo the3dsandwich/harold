@@ -85,31 +85,29 @@ describe('dispatch', () => {
     vi.clearAllMocks();
   });
 
-  it('sends raw content when summarize is not present', async () => {
+  it('sends content directly when no summarize', async () => {
     executeMock.mockResolvedValue({ content: 'raw output' });
     await dispatch(fakeJob);
     expect(sendMock).toHaveBeenCalledWith('raw output');
     expect(humanizeMock).not.toHaveBeenCalled();
   });
 
-  it('sends raw content when summarize.enabled is false', async () => {
+  it('passes summarize.content through Gemini and sends result', async () => {
     executeMock.mockResolvedValue({
-      content: 'raw output',
-      summarize: { enabled: false, prompt: 'ignored' },
+      summarize: { content: 'raw data', prompt: 'Be friendly', fallback: 'fallback msg' },
     });
     await dispatch(fakeJob);
-    expect(sendMock).toHaveBeenCalledWith('raw output');
-    expect(humanizeMock).not.toHaveBeenCalled();
+    expect(humanizeMock).toHaveBeenCalledWith('raw data', 'Be friendly');
+    expect(sendMock).toHaveBeenCalledWith('Humanized message');
   });
 
-  it('passes content through gemini when summarize.enabled is true', async () => {
+  it('sends fallback when Gemini fails', async () => {
     executeMock.mockResolvedValue({
-      content: 'raw output',
-      summarize: { enabled: true, prompt: 'Be friendly' },
+      summarize: { content: 'raw data', prompt: 'Be friendly', fallback: 'fallback msg' },
     });
+    humanizeMock.mockRejectedValue(new Error('503 Service Unavailable'));
     await dispatch(fakeJob);
-    expect(humanizeMock).toHaveBeenCalledWith('raw output', 'Be friendly');
-    expect(sendMock).toHaveBeenCalledWith('Humanized message');
+    expect(sendMock).toHaveBeenCalledWith('fallback msg');
   });
 
   it('does not throw or send when job.execute() rejects', async () => {

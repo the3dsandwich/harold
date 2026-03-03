@@ -32,13 +32,13 @@ INTERFACES (do not modify):
     execute(): Promise<JobResult>;
   }
 
-  interface JobResult {
-    content: string;
-    summarize?: {
-      enabled: boolean;
-      prompt: string;
-    };
-  }
+  type JobResult =
+    | { content: string }                         // sent directly, no LLM
+    | { summarize: {                              // try Gemini, fallback on failure
+        content: string;    // input to Gemini
+        prompt: string;     // system prompt
+        fallback: string;   // sent if Gemini is unavailable
+      }; }
 
 REGISTRATION (after generating the file):
   1. Add the file to src/jobs/<job-id>.ts

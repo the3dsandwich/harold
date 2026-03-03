@@ -37,7 +37,7 @@ describe('morningGreeting job', () => {
     expect(morningGreeting.description).toBeTruthy();
   });
 
-  it('returns formatted content with temperature and condition', async () => {
+  it('returns summarize with correct Gemini input', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: () => ({ current: { temperature_2m: 22.4, weathercode: 1 } }),
@@ -45,7 +45,23 @@ describe('morningGreeting job', () => {
 
     const result = await morningGreeting.execute();
 
-    expect(result.content).toBe('Good morning! It is 22°C and mainly clear today.');
+    expect('summarize' in result).toBe(true);
+    if (!('summarize' in result)) return;
+    expect(result.summarize.content).toBe('temperature: 22°C, condition: mainly clear');
+    expect(result.summarize.prompt).toContain('Harold');
+  });
+
+  it('fallback contains temperature and condition', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => ({ current: { temperature_2m: 22.4, weathercode: 1 } }),
+    }));
+
+    const result = await morningGreeting.execute();
+
+    if (!('summarize' in result)) return;
+    expect(result.summarize.fallback).toContain('22°C');
+    expect(result.summarize.fallback).toContain('mainly clear');
   });
 
   it('rounds temperature correctly', async () => {
@@ -55,18 +71,9 @@ describe('morningGreeting job', () => {
     }));
 
     const result = await morningGreeting.execute();
-    expect(result.content).toContain('19°C');
-  });
-
-  it('does not use LLM summarization', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => ({ current: { temperature_2m: 25.0, weathercode: 0 } }),
-    }));
-
-    const result = await morningGreeting.execute();
-
-    expect(result.summarize?.enabled).toBeFalsy();
+    if (!('summarize' in result)) return;
+    expect(result.summarize.content).toContain('19°C');
+    expect(result.summarize.fallback).toContain('19°C');
   });
 
   it('throws when Open-Meteo returns a non-OK status', async () => {
