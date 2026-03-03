@@ -2,4 +2,4 @@
 set -e
 
 echo "[harold] starting"
-exec node dist/index.js
+exec node --dns-result-order=ipv4first dist/index.js
