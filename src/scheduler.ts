@@ -5,7 +5,8 @@ import { humanize } from './lib/gemini.js';
 import { logger } from './lib/logger.js';
 import type { Job } from './types.js';
 
-export async function dispatch(job: Job): Promise<void> {
+/** Returns the text that was sent, or null if the job failed. */
+export async function dispatch(job: Job): Promise<string | null> {
   logger.info('scheduler', `${job.id} fired`);
   try {
     const result = await job.execute();
@@ -17,8 +18,10 @@ export async function dispatch(job: Job): Promise<void> {
 
     await send(text);
     logger.info('scheduler', `${job.id} sent | ${text.length} chars`);
+    return text;
   } catch (err) {
     logger.error('scheduler', `${job.id} failed: ${(err as Error).message}`);
+    return null;
   }
 }
 

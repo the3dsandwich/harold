@@ -15,4 +15,18 @@ services:
     environment:
       - TZ=${TZ:-Asia/Taipei}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+    ports:
+      - "${DASHBOARD_PORT:-8080}:${DASHBOARD_PORT:-8080}"
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    restart: unless-stopped
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: harold-watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --label-enable --schedule "${WATCHTOWER_SCHEDULE:-@hourly}"
+    environment:
+      - TZ=${TZ:-Asia/Taipei}
     restart: unless-stopped
