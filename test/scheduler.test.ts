@@ -44,22 +44,30 @@ describe('formatError', () => {
     expect(formatError(new Error('something went wrong'))).toBe('something went wrong');
   });
 
-  it('joins cause chain messages with colon separator', () => {
+  it('joins cause chain messages with colon separator, using constructor name for empty messages', () => {
     const root = new Error('root cause');
-    const mid = new Error('');
+    const mid = new Error('');       // empty message → falls back to "Error"
     const top = new Error('fetch failed');
     (mid as Error & { cause: unknown }).cause = root;
     (top as Error & { cause: unknown }).cause = mid;
-    expect(formatError(top)).toBe('fetch failed: root cause');
+    expect(formatError(top)).toBe('fetch failed: Error: root cause');
   });
 
-  it('skips empty messages in the cause chain', () => {
-    const inner = new Error('ENOTFOUND api.open-meteo.com');
-    const middle = new Error('');
+  it('falls back to error code when message is empty', () => {
+    const inner = Object.assign(new Error(''), { code: 'ENOTFOUND' });
     const outer = new Error('fetch failed');
-    (middle as Error & { cause: unknown }).cause = inner;
-    (outer as Error & { cause: unknown }).cause = middle;
-    expect(formatError(outer)).toBe('fetch failed: ENOTFOUND api.open-meteo.com');
+    (outer as Error & { cause: unknown }).cause = inner;
+    expect(formatError(outer)).toBe('fetch failed: ENOTFOUND');
+  });
+
+  it('falls back to constructor name when message and code are both empty', () => {
+    class ConnectTimeoutError extends Error {
+      constructor() { super(''); }
+    }
+    const inner = new ConnectTimeoutError();
+    const outer = new Error('fetch failed');
+    (outer as Error & { cause: unknown }).cause = inner;
+    expect(formatError(outer)).toBe('fetch failed: ConnectTimeoutError');
   });
 
   it('handles a single-level error with no cause', () => {

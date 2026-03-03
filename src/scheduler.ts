@@ -5,12 +5,17 @@ import { humanize } from './lib/gemini.js';
 import { logger } from './lib/logger.js';
 import type { Job } from './types.js';
 
+type NodeError = Error & { code?: string; cause?: unknown };
+
 export function formatError(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
   const parts: string[] = [];
   let current: unknown = err;
   while (current instanceof Error) {
-    if (current.message) parts.push(current.message);
-    current = (current as Error & { cause?: unknown }).cause;
+    const e = current as NodeError;
+    const label = e.message || e.code || e.constructor.name;
+    if (label) parts.push(label);
+    current = e.cause;
   }
   return parts.length > 0 ? parts.join(': ') : String(err);
 }
