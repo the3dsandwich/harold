@@ -17,7 +17,8 @@
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
     "express": "^5.2.1",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "undici": "^7.22.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
