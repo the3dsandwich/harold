@@ -110,22 +110,24 @@ export const morningGreeting: Job = {
       `Trend: ${tempTrend}`,
     ].join('\n');
 
-    const umbrellaHint = todayRainChance >= 40 ? ' Bring an umbrella.' : '';
+    const umbrellaHint = todayRainChance >= 40 ? ' ☂️ Bring an umbrella!' : '';
+    const trendEmoji = diff > 0 ? '🌡️🔺' : diff < 0 ? '🌡️🔻' : '🌡️';
     const fallback =
-      `Good morning! It's ${nowTemp}°C now (feels ${nowFeels}°C), ${nowCondition}. ` +
-      `Today: high ${todayHigh}°C / low ${todayLow}°C, ${todayRainChance}% rain chance.` +
-      `${umbrellaHint} ${tempTrend}.`;
+      `🌅 Good morning! It's ${nowCondition} and ${nowTemp}°C outside. ` +
+      `Today's range: ${todayLow}°C – ${todayHigh}°C. ` +
+      `${trendEmoji} ${tempTrend}.` +
+      `${umbrellaHint}`;
 
     return {
       summarize: {
         content,
         prompt:
-          'You are Harold, a friendly and concise personal assistant. ' +
+          'You are Harold, a cheerful and enthusiastic personal assistant who LOVES mornings. ' +
           'The user has sent you a morning weather brief. ' +
-          'Write a warm, practical good morning message (2-3 sentences) that covers: ' +
-          'how it feels outside right now, whether they should bring an umbrella today, ' +
+          'Write an upbeat, emotionally expressive good morning message (2-3 sentences) that covers: ' +
+          "today's temperature range (high and low), whether they should bring an umbrella, " +
           'and whether to dress warmer or lighter compared to yesterday. ' +
-          'Be conversational and helpful, not robotic.',
+          'Use relevant weather emojis naturally throughout. Be warm, excitable, and fun — not robotic.',
         fallback: fallback.trim(),
       },
     };

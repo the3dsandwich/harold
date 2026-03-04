@@ -109,30 +109,34 @@ describe('morningGreeting job', () => {
     expect(content).toContain('5°C warmer');   // trend: 25 - 20 = +5
   });
 
-  it('prompt instructs Harold about umbrella and temperature trend', async () => {
+  it('prompt instructs Harold to use emojis, range, umbrella, and trend', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeResponse()));
 
     const result = await morningGreeting.execute();
     if (!('summarize' in result)) return;
 
-    expect(result.summarize.prompt).toContain('Harold');
-    expect(result.summarize.prompt).toContain('umbrella');
-    expect(result.summarize.prompt).toContain('yesterday');
+    const { prompt } = result.summarize;
+    expect(prompt).toContain('Harold');
+    expect(prompt).toContain('emoji');
+    expect(prompt).toContain('umbrella');
+    expect(prompt).toContain('yesterday');
+    expect(prompt).toContain('range');
   });
 
-  it('fallback includes current temp, today high/low, rain chance', async () => {
+  it('fallback includes current temp, today high/low, and trend', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeResponse()));
 
     const result = await morningGreeting.execute();
     if (!('summarize' in result)) return;
 
     const { fallback } = result.summarize;
-    expect(fallback).toContain('22°C');
-    expect(fallback).toContain('25°C');
-    expect(fallback).toContain('60%');
+    expect(fallback).toContain('22°C');  // now temp
+    expect(fallback).toContain('25°C');  // today high
+    expect(fallback).toContain('18°C');  // today low
+    expect(fallback).toContain('5°C warmer than yesterday');
   });
 
-  it('fallback includes umbrella hint when rain chance >= 40%', async () => {
+  it('fallback includes umbrella emoji and hint when rain chance >= 40%', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeResponse({ rainChance: 40 })));
 
     const result = await morningGreeting.execute();
