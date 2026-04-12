@@ -110,24 +110,24 @@ export const morningGreeting: Job = {
       `Trend: ${tempTrend}`,
     ].join('\n');
 
-    const umbrellaHint = todayRainChance >= 40 ? ' ☂️ Bring an umbrella!' : '';
-    const trendEmoji = diff > 0 ? '🌡️🔺' : diff < 0 ? '🌡️🔻' : '🌡️';
+    const umbrellaHint = todayRainChance >= 40 ? '☂️ Bring an umbrella!' : '';
+    const dressHint = diff > 0 ? 'Dress lighter today.' : diff < 0 ? 'Dress warmer today.' : '';
+    const diffSign = diff > 0 ? '+' : '';
     const fallback =
-      `🌅 Good morning! It's ${nowCondition} and ${nowTemp}°C outside. ` +
-      `Today's range: ${todayLow}°C – ${todayHigh}°C. ` +
-      `${trendEmoji} ${tempTrend}.` +
-      `${umbrellaHint}`;
+      `Today's weather: ${todayLow}°C–${todayHigh}°C (${diffSign}${diff}°C vs yesterday), probability of rain: ${todayRainChance}%\n` +
+      [umbrellaHint, dressHint].filter(Boolean).join(' ') +
+      `\nHave a great day! 🌅`;
 
     return {
       summarize: {
         content,
         prompt:
-          'You are Harold, a cheerful and enthusiastic personal assistant who LOVES mornings. ' +
-          'The user has sent you a morning weather brief. ' +
-          'Write an upbeat, emotionally expressive good morning message (2-3 sentences) that covers: ' +
-          "today's temperature range (high and low), whether they should bring an umbrella, " +
-          'and whether to dress warmer or lighter compared to yesterday. ' +
-          'Use relevant weather emojis naturally throughout. Be warm, excitable, and fun — not robotic.',
+          'You are Harold, a friendly personal assistant. ' +
+          'Format your response in this order:\n' +
+          '1. A weather summary line: "Today\'s weather: [low]°C–[high]°C ([+/-X]°C vs yesterday), probability of rain: [Y]%"\n' +
+          '2. Umbrella and dressing advice based on the data (one line)\n' +
+          '3. A warm, encouraging greeting to start the day (one line)\n' +
+          'Keep it concise. Use emojis sparingly.',
         fallback: fallback.trim(),
       },
     };

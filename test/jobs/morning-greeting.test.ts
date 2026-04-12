@@ -118,9 +118,9 @@ describe('morningGreeting job', () => {
     const { prompt } = result.summarize;
     expect(prompt).toContain('Harold');
     expect(prompt).toContain('emoji');
-    expect(prompt).toContain('umbrella');
+    expect(prompt).toContain('Umbrella');
     expect(prompt).toContain('yesterday');
-    expect(prompt).toContain('range');
+    expect(prompt).toContain('weather');
   });
 
   it('fallback includes current temp, today high/low, and trend', async () => {
@@ -130,10 +130,9 @@ describe('morningGreeting job', () => {
     if (!('summarize' in result)) return;
 
     const { fallback } = result.summarize;
-    expect(fallback).toContain('22°C');  // now temp
     expect(fallback).toContain('25°C');  // today high
     expect(fallback).toContain('18°C');  // today low
-    expect(fallback).toContain('5°C warmer than yesterday');
+    expect(fallback).toContain('+5°C vs yesterday');
   });
 
   it('fallback includes umbrella emoji and hint when rain chance >= 40%', async () => {
