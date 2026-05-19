@@ -22,11 +22,14 @@ services:
     restart: unless-stopped
 
   watchtower:
-    image: containrrr/watchtower:latest
+    image: containrrr/watchtower:1.7.1
     container_name: harold-watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     command: --scope harold --schedule "${WATCHTOWER_SCHEDULE:-@hourly}"
     environment:
       - TZ=${TZ:-Asia/Taipei}
+      # Watchtower 1.7.1 negotiates Docker API v1.25 by default, which Docker
+      # Engine 26+ rejects (minimum is v1.44). Pinning here bypasses negotiation.
+      - DOCKER_API_VERSION=1.44
     restart: unless-stopped
