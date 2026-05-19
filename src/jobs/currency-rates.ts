@@ -19,7 +19,7 @@ const fetchRates = async (base: string): Promise<CurrencyRatesResponse> => {
   throw new Error(`Currency API unavailable for base currency: ${base}`);
 };
 
-const fmt = (n: number) => n.toFixed(2);
+const fmt = (n: number) => n.toFixed(4);
 
 export const currencyRates: Job = {
   id: 'currency-rates',
@@ -46,7 +46,7 @@ export const currencyRates: Job = {
     const diff = ntdPerCadViaUsd - ntdPerCadDirect;
 
     let verdict: string;
-    if (Math.abs(diff) < 0.005) {
+    if (Math.abs(diff) < 0.00005) {
       verdict = '➖ Both routes are equivalent today';
     } else if (diff < 0) {
       verdict = `✅ Via USD saves ${fmt(Math.abs(diff))} NTD per CAD`;
@@ -55,14 +55,11 @@ export const currencyRates: Job = {
     }
 
     const content = [
-      `📅 ${date}`,
+      verdict,
       ``,
-      `🇹🇼→🇨🇦 Exchange Rate Comparison`,
-      ``,
+      `🇹🇼→🇨🇦 Exchange Rate Comparison (${date})`,
       `🔹 Direct:   1 CAD = ${fmt(ntdPerCadDirect)} NTD`,
       `🔹 Via USD:  1 CAD = ${fmt(ntdPerCadViaUsd)} NTD`,
-      ``,
-      verdict,
     ].join('\n');
 
     return { content };

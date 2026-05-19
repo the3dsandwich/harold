@@ -54,7 +54,7 @@ describe('currencyRates job', () => {
 
     const result = await currencyRates.execute();
     if (!('content' in result)) return;
-    expect(result.content).toContain('Direct:   1 CAD = 25.00 NTD');
+    expect(result.content).toContain('Direct:   1 CAD = 25.0000 NTD');
   });
 
   it('computes via-USD route as 1 / (twd_usd * usd_cad)', async () => {
@@ -66,7 +66,7 @@ describe('currencyRates job', () => {
 
     const result = await currencyRates.execute();
     if (!('content' in result)) return;
-    expect(result.content).toContain('Via USD:  1 CAD = 22.22 NTD');
+    expect(result.content).toContain('Via USD:  1 CAD = 22.2222 NTD');
   });
 
   it('verdict says via USD is cheaper when via-USD NTD cost is lower', async () => {
