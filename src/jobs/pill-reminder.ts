@@ -7,7 +7,7 @@ export const pillReminder: Job = {
   timezone: 'Asia/Taipei',
   enabled: true,
 
-  async execute(): Promise<JobResult> {
-    return { content: '💊 Time to take your pill!' };
+  execute(): Promise<JobResult> {
+    return Promise.resolve({ content: '💊 Time to take your pill!' });
   },
 };
