@@ -4,9 +4,10 @@ import { pillReminder } from '../../src/jobs/pill-reminder.js';
 describe('pillReminder job', () => {
   it('has correct static metadata', () => {
     expect(pillReminder.id).toBe('pill-reminder');
-    expect(pillReminder.schedule).toBe('0 17 * * *');
+    expect(pillReminder.schedule).toBe('0 20 * * *');
     expect(pillReminder.timezone).toBe('Asia/Taipei');
     expect(pillReminder.enabled).toBe(true);
+    expect(pillReminder.description).toBe('Daily 8pm pill reminder');
   });
 
   it('execute returns the reminder message', async () => {

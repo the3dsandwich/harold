@@ -2,8 +2,8 @@ import type { Job, JobResult } from '../types.js';
 
 export const pillReminder: Job = {
   id: 'pill-reminder',
-  description: 'Daily 5pm pill reminder',
-  schedule: '0 17 * * *',
+  description: 'Daily 8pm pill reminder',
+  schedule: '0 20 * * *',
   timezone: 'Asia/Taipei',
   enabled: true,
 
