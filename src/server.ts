@@ -50,6 +50,19 @@ function dashboardHtml(): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Harold</title>
   <style>
+    :root {
+      /* transitions.dev — panel reveal (result box) */
+      --panel-open-dur: 400ms;
+      --panel-close-dur: 350ms;
+      --panel-translate-y: 10px; /* shorter travel than the 100px default — this panel is small */
+      --panel-blur: 2px;
+      --panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
+      /* transitions.dev — text states swap (Run now / Running…) */
+      --text-swap-dur: 150ms;
+      --text-swap-translate-y: 4px;
+      --text-swap-blur: 2px;
+      --text-swap-ease: ease-in-out;
+    }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: system-ui, -apple-system, sans-serif;
@@ -100,12 +113,34 @@ function dashboardHtml(): string {
       font-size: 0.82rem;
       font-weight: 500;
       cursor: pointer;
-      transition: background 0.15s;
+      /* transitions.dev — text states swap base state, plus the existing hover fade */
+      display: inline-block;
+      transform: translateY(0);
+      filter: blur(0);
+      opacity: 1;
+      transition:
+        background  0.15s,
+        transform   var(--text-swap-dur) var(--text-swap-ease),
+        filter      var(--text-swap-dur) var(--text-swap-ease),
+        opacity     var(--text-swap-dur) var(--text-swap-ease);
+      will-change: transform, filter, opacity;
     }
     .run-btn:hover:not(:disabled) { background: #1d4ed8; }
     .run-btn:disabled { background: #262626; color: #525252; cursor: not-allowed; }
+    /* transitions.dev — text states swap, applied to .run-btn's own label */
+    .run-btn.is-exit {
+      transform: translateY(calc(var(--text-swap-translate-y) * -1));
+      filter: blur(var(--text-swap-blur));
+      opacity: 0;
+    }
+    .run-btn.is-enter-start {
+      transform: translateY(var(--text-swap-translate-y));
+      filter: blur(var(--text-swap-blur));
+      opacity: 0;
+      transition: none;
+    }
+    /* transitions.dev — panel reveal */
     .result {
-      display: none;
       margin-top: 0.75rem;
       padding: 0.75rem;
       background: #0a0a0a;
@@ -115,11 +150,33 @@ function dashboardHtml(): string {
       white-space: pre-wrap;
       word-break: break-word;
       line-height: 1.5;
+      transform: translateY(var(--panel-translate-y));
+      opacity: 0;
+      filter: blur(var(--panel-blur));
+      pointer-events: none;
+      transition:
+        transform var(--panel-close-dur) var(--panel-ease),
+        opacity   var(--panel-close-dur) var(--panel-ease),
+        filter    var(--panel-close-dur) var(--panel-ease);
+      will-change: transform, opacity, filter;
     }
-    .result.show { display: block; }
+    .result[data-open="true"] {
+      transform: translateY(0);
+      opacity: 1;
+      filter: blur(0);
+      pointer-events: auto;
+      transition:
+        transform var(--panel-open-dur) var(--panel-ease),
+        opacity   var(--panel-open-dur) var(--panel-ease),
+        filter    var(--panel-open-dur) var(--panel-ease);
+    }
     .result.ok  { color: #86efac; border-color: #14532d; }
     .result.err { color: #fca5a5; border-color: #450a0a; }
     .error-state { color: #737373; font-size: 0.9rem; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .run-btn, .result { transition: none !important; }
+    }
   </style>
 </head>
 <body>
@@ -163,29 +220,48 @@ function dashboardHtml(): string {
       return el;
     }
 
+    // transitions.dev — text states swap: three-phase text change on any element.
+    function swapText(el, next) {
+      const dur = parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--text-swap-dur'),
+      ) || 150;
+      el.classList.add('is-exit');
+      setTimeout(() => {
+        el.textContent = next;
+        el.classList.remove('is-exit');
+        el.classList.add('is-enter-start');
+        void el.offsetHeight; // force reflow so the next change transitions
+        el.classList.remove('is-enter-start');
+      }, dur);
+    }
+
     async function run(id) {
       const btn = document.getElementById('btn-' + id);
       const out = document.getElementById('result-' + id);
       btn.disabled = true;
-      btn.textContent = 'Running…';
-      out.className = 'result show';
+      swapText(btn, 'Running…');
+      out.className = 'result';
+      out.dataset.open = 'true';
       out.textContent = 'Running…';
       try {
         const res = await fetch('/api/jobs/' + id + '/run', { method: 'POST' });
         const data = await res.json();
         if (res.ok) {
-          out.className = 'result show ok';
+          out.className = 'result ok';
+          out.dataset.open = 'true';
           out.textContent = data.sent;
         } else {
-          out.className = 'result show err';
+          out.className = 'result err';
+          out.dataset.open = 'true';
           out.textContent = data.error ?? 'Unknown error';
         }
       } catch (e) {
-        out.className = 'result show err';
+        out.className = 'result err';
+        out.dataset.open = 'true';
         out.textContent = e.message;
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Run now';
+        swapText(btn, 'Run now');
       }
     }
 
