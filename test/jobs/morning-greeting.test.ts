@@ -92,7 +92,7 @@ describe('morningGreeting job', () => {
   it('content includes current conditions, today forecast, rain, and trend', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeResponse()));
 
-    const result = await morningGreeting.execute();
+    const result = await morningGreeting.execute({ history: [] });
     expect('summarize' in result).toBe(true);
     if (!('summarize' in result)) return;
 
@@ -112,7 +112,7 @@ describe('morningGreeting job', () => {
   it('prompt instructs Harold to use emojis, range, umbrella, and trend', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeResponse()));
 
-    const result = await morningGreeting.execute();
+    const result = await morningGreeting.execute({ history: [] });
     if (!('summarize' in result)) return;
 
     const { prompt } = result.summarize;
@@ -126,7 +126,7 @@ describe('morningGreeting job', () => {
   it('fallback includes current temp, today high/low, and trend', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeResponse()));
 
-    const result = await morningGreeting.execute();
+    const result = await morningGreeting.execute({ history: [] });
     if (!('summarize' in result)) return;
 
     const { fallback } = result.summarize;
@@ -138,7 +138,7 @@ describe('morningGreeting job', () => {
   it('fallback includes umbrella emoji and hint when rain chance >= 40%', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeResponse({ rainChance: 40 })));
 
-    const result = await morningGreeting.execute();
+    const result = await morningGreeting.execute({ history: [] });
     if (!('summarize' in result)) return;
     expect(result.summarize.fallback).toContain('umbrella');
   });
@@ -146,7 +146,7 @@ describe('morningGreeting job', () => {
   it('fallback omits umbrella hint when rain chance < 40%', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeResponse({ rainChance: 20 })));
 
-    const result = await morningGreeting.execute();
+    const result = await morningGreeting.execute({ history: [] });
     if (!('summarize' in result)) return;
     expect(result.summarize.fallback).not.toContain('umbrella');
   });
@@ -156,7 +156,7 @@ describe('morningGreeting job', () => {
       makeResponse({ ydayHigh: 28.0, todayHigh: 22.0 }),
     ));
 
-    const result = await morningGreeting.execute();
+    const result = await morningGreeting.execute({ history: [] });
     if (!('summarize' in result)) return;
     expect(result.summarize.content).toContain('6°C cooler than yesterday');
   });
@@ -166,7 +166,7 @@ describe('morningGreeting job', () => {
       makeResponse({ ydayHigh: 22.0, todayHigh: 22.0 }),
     ));
 
-    const result = await morningGreeting.execute();
+    const result = await morningGreeting.execute({ history: [] });
     if (!('summarize' in result)) return;
     expect(result.summarize.content).toContain('same high as yesterday');
   });
@@ -176,7 +176,7 @@ describe('morningGreeting job', () => {
       makeResponse({ nowTemp: 18.7, todayHigh: 21.6, todayLow: 14.4 }),
     ));
 
-    const result = await morningGreeting.execute();
+    const result = await morningGreeting.execute({ history: [] });
     if (!('summarize' in result)) return;
     expect(result.summarize.content).toContain('19°C'); // now temp
     expect(result.summarize.content).toContain('22°C'); // today high
@@ -188,7 +188,7 @@ describe('morningGreeting job', () => {
       makeResponse({ rainChance: null }),
     ));
 
-    const result = await morningGreeting.execute();
+    const result = await morningGreeting.execute({ history: [] });
     if (!('summarize' in result)) return;
     expect(result.summarize.content).toContain('0%');
     expect(result.summarize.fallback).not.toContain('umbrella');
@@ -196,14 +196,14 @@ describe('morningGreeting job', () => {
 
   it('throws when Open-Meteo returns a non-OK status', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }));
-    await expect(morningGreeting.execute()).rejects.toThrow('Open-Meteo API error: 503');
+    await expect(morningGreeting.execute({ history: [] })).rejects.toThrow('Open-Meteo API error: 503');
   });
 
   it('request URL includes all required current and daily variables', async () => {
     const fetchMock = vi.fn().mockResolvedValue(makeResponse());
     vi.stubGlobal('fetch', fetchMock);
 
-    await morningGreeting.execute();
+    await morningGreeting.execute({ history: [] });
 
     const url = fetchMock.mock.calls[0][0] as string;
     expect(url).toContain('current=');
@@ -223,7 +223,7 @@ describe('morningGreeting job', () => {
     process.env.LATITUDE = '35.6762';
     process.env.LONGITUDE = '139.6503';
 
-    await morningGreeting.execute();
+    await morningGreeting.execute({ history: [] });
 
     const url = fetchMock.mock.calls[0][0] as string;
     expect(url).toContain('latitude=35.6762');

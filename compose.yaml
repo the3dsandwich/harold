@@ -15,8 +15,11 @@ services:
     environment:
       - TZ=${TZ:-Asia/Taipei}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - STATE_DIR=${STATE_DIR:-/data/state}
     ports:
       - "${DASHBOARD_PORT:-8080}:${DASHBOARD_PORT:-8080}"
+    volumes:
+      - state:${STATE_DIR:-/data/state}
     labels:
       - com.centurylinklabs.watchtower.scope=harold
     restart: unless-stopped
@@ -33,3 +36,6 @@ services:
       # Engine 26+ rejects (minimum is v1.44). Pinning here bypasses negotiation.
       - DOCKER_API_VERSION=1.44
     restart: unless-stopped
+
+volumes:
+  state:

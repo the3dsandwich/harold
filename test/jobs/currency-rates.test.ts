@@ -33,7 +33,7 @@ describe('currencyRates job', () => {
       .mockResolvedValueOnce(makeUsdResponse()),
     );
 
-    const result = await currencyRates.execute();
+    const result = await currencyRates.execute({ history: [] });
     expect('content' in result).toBe(true);
     if (!('content' in result)) return;
 
@@ -52,7 +52,7 @@ describe('currencyRates job', () => {
       .mockResolvedValueOnce(makeUsdResponse({ cad: 1.5 })),
     );
 
-    const result = await currencyRates.execute();
+    const result = await currencyRates.execute({ history: [] });
     if (!('content' in result)) return;
     expect(result.content).toContain('Direct:   1 CAD = 25.0000 NTD');
   });
@@ -64,7 +64,7 @@ describe('currencyRates job', () => {
       .mockResolvedValueOnce(makeUsdResponse({ cad: 1.5 })),
     );
 
-    const result = await currencyRates.execute();
+    const result = await currencyRates.execute({ history: [] });
     if (!('content' in result)) return;
     expect(result.content).toContain('Via USD:  1 CAD = 22.2222 NTD');
   });
@@ -76,7 +76,7 @@ describe('currencyRates job', () => {
       .mockResolvedValueOnce(makeUsdResponse({ cad: 1.5 })),
     );
 
-    const result = await currencyRates.execute();
+    const result = await currencyRates.execute({ history: [] });
     if (!('content' in result)) return;
     expect(result.content).toContain('Via USD saves');
   });
@@ -89,7 +89,7 @@ describe('currencyRates job', () => {
       .mockResolvedValueOnce(makeUsdResponse({ cad: 0.8 })),
     );
 
-    const result = await currencyRates.execute();
+    const result = await currencyRates.execute({ history: [] });
     if (!('content' in result)) return;
     expect(result.content).toContain('Direct saves');
   });
@@ -101,7 +101,7 @@ describe('currencyRates job', () => {
       .mockResolvedValueOnce(makeUsdResponse({ cad: 1.5 })),
     );
 
-    const result = await currencyRates.execute();
+    const result = await currencyRates.execute({ history: [] });
     if (!('content' in result)) return;
     expect(result.content).toContain('equivalent');
   });
@@ -117,7 +117,7 @@ describe('currencyRates job', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await currencyRates.execute();
+    const result = await currencyRates.execute({ history: [] });
     expect('content' in result).toBe(true);
     const calledUrls = fetchMock.mock.calls.map((c) => c[0] as string);
     expect(calledUrls.some((u) => u.includes('currency-api.pages.dev'))).toBe(true);
@@ -125,6 +125,6 @@ describe('currencyRates job', () => {
 
   it('throws when both primary and fallback fail', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }));
-    await expect(currencyRates.execute()).rejects.toThrow('Currency API unavailable');
+    await expect(currencyRates.execute({ history: [] })).rejects.toThrow('Currency API unavailable');
   });
 });

@@ -15,7 +15,27 @@ export interface Job {
   /** Set to false to skip registration without deleting the job */
   enabled: boolean;
   /** Run the job's logic and return a result ready for delivery */
-  execute(): Promise<JobResult>;
+  execute(ctx: JobContext): Promise<JobResult>;
+}
+
+/** One past run of a job, as persisted by the scheduler after a successful send. */
+export interface JobHistoryEntry {
+  /** Calendar date the job ran, in the job's own timezone (YYYY-MM-DD) */
+  date: string;
+  /** The message that was actually sent (post-humanization, if any) */
+  content: string;
+  /** Whatever the job chose to remember about this run, for its own future reference */
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Passed to execute() so a job can see its own past runs — e.g. to avoid
+ * repeating a notification, or to derive a trend from previously stored metadata.
+ * A job never sees another job's history.
+ */
+export interface JobContext {
+  /** This job's past runs, oldest first, capped by retention (see src/lib/state.ts) */
+  history: JobHistoryEntry[];
 }
 
 /**
@@ -26,7 +46,7 @@ export interface Job {
  *   - Summarized: { summarize } — Harold attempts Gemini humanization.
  *     If Gemini fails for any reason, summarize.fallback is sent instead.
  */
-export type JobResult =
+export type JobResult = (
   | {
       /** Message delivered directly to Telegram. */
       content: string;
@@ -40,4 +60,8 @@ export type JobResult =
         /** Delivered as-is when Gemini is unavailable or errors. */
         fallback: string;
       };
-    };
+    }
+) & {
+  /** Persisted to this job's history after a successful send, for next run's ctx.history. */
+  metadata?: Record<string, unknown>;
+};

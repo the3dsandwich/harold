@@ -13,13 +13,18 @@ You are writing a Harold job — a TypeScript module for a personal notification
 
 RULES:
 1. Implement the Job interface exactly as defined below. Do not change field names or types.
-2. execute() must contain all logic. It may call external APIs using fetch(). It must return a JobResult.
+2. execute(ctx) must contain all logic. It may call external APIs using fetch(). It must return a JobResult.
+   ctx.history gives you this job's own past runs (date + what was sent + any metadata you stored last
+   time) — use it if your job needs to remember something across days (e.g. "don't repeat this notification
+   within a week"). If your job doesn't need memory, ignore ctx (or omit the parameter entirely — TypeScript
+   allows an implementation to declare fewer parameters than the interface).
 3. JobResult.content must be a plain text string — structured data, a summary, or a formatted snippet. This is the "raw" message.
-4. If the message benefits from natural-language phrasing, set summarize.enabled = true and write a prompt that gives Harold a warm, friendly voice and explains the content format.
-5. If the message is already readable as-is (e.g. a simple reminder), set summarize to undefined or summarize.enabled = false.
-6. Use process.env for all secrets and configuration. Document every new env variable in .env.example format at the end of the file as a comment block.
-7. Export the job as a named const (not default). The name should be camelCase.
-8. Write a corresponding test file at test/jobs/<job-id>.test.ts. Mock fetch and any external modules. Test execute() logic, not the delivery pipeline.
+4. If the message benefits from natural-language phrasing, return a `summarize` block instead of `content`, with a prompt that gives Harold a warm, friendly voice and explains the content format.
+5. If the message is already readable as-is (e.g. a simple reminder), return `{ content }` directly — no LLM involved.
+6. If your job wants to remember something for its own next run (e.g. which items it already flagged), set JobResult.metadata to a plain object. It gets persisted alongside today's entry and shows up in ctx.history on the next run — only this job sees it.
+7. Use process.env for all secrets and configuration. Document every new env variable in .env.example format at the end of the file as a comment block.
+8. Export the job as a named const (not default). The name should be camelCase.
+9. Write a corresponding test file at test/jobs/<job-id>.test.ts. Mock fetch and any external modules. Test execute() logic, not the delivery pipeline.
 
 INTERFACES (do not modify):
 
@@ -29,16 +34,29 @@ INTERFACES (do not modify):
     schedule: string;         // cron expression
     timezone?: string;
     enabled: boolean;
-    execute(): Promise<JobResult>;
+    execute(ctx: JobContext): Promise<JobResult>;
   }
 
-  type JobResult =
+  interface JobHistoryEntry {
+    date: string;              // YYYY-MM-DD, in the job's own timezone
+    content: string;           // what was actually sent that day
+    metadata?: Record<string, unknown>;
+  }
+
+  interface JobContext {
+    history: JobHistoryEntry[]; // this job's own past runs, oldest first — never another job's
+  }
+
+  type JobResult = (
     | { content: string }                         // sent directly, no LLM
     | { summarize: {                              // try Gemini, fallback on failure
         content: string;    // input to Gemini
         prompt: string;     // system prompt
         fallback: string;   // sent if Gemini is unavailable
       }; }
+  ) & {
+    metadata?: Record<string, unknown>;  // persisted for next run's ctx.history, if you need it
+  };
 
 REGISTRATION (after generating the file):
   1. Add the file to src/jobs/<job-id>.ts
@@ -58,17 +76,32 @@ export interface Job {
   schedule: string;         // cron expression, e.g. "0 7 * * *" = daily 7am
   timezone?: string;        // defaults to process.env.TZ
   enabled: boolean;         // set to false to pause without deleting
-  execute(): Promise<JobResult>;
+  execute(ctx: JobContext): Promise<JobResult>;
 }
 
-export interface JobResult {
-  content: string;          // raw output from your logic
-  summarize?: {
-    enabled: boolean;
-    prompt: string;         // system prompt for Gemini humanization
-  };
+export interface JobHistoryEntry {
+  date: string;              // YYYY-MM-DD, in the job's own timezone
+  content: string;           // the message that was actually sent
+  metadata?: Record<string, unknown>;
 }
+
+export interface JobContext {
+  history: JobHistoryEntry[]; // this job's own past runs, oldest first
+}
+
+export type JobResult = (
+  | { content: string }
+  | { summarize: { content: string; prompt: string; fallback: string } }
+) & {
+  metadata?: Record<string, unknown>;
+};
 ```
+
+Most jobs don't need `ctx` at all — if your job's output only depends on today's data, you can declare
+`execute(): Promise<JobResult>` with no parameter (see `morning-greeting.ts`, `currency-rates.ts`,
+`pill-reminder.ts`). Only reach for `ctx.history` / `JobResult.metadata` when a job genuinely needs to
+remember something across runs — see `fund-dip-watch.ts` for an example that dedupes notifications
+against its own history.
 
 ---
 
