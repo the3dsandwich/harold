@@ -1,16 +1,24 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { JobResult } from '../src/types.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { JobContext, JobHistoryEntry, JobResult } from '../src/types.js';
 
 const scheduleMock = vi.hoisted(() => vi.fn());
 const sendMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const humanizeMock = vi.hoisted(() => vi.fn().mockResolvedValue('Humanized message'));
-const executeMock = vi.hoisted(() => vi.fn<() => Promise<JobResult>>());
+const executeMock = vi.hoisted(() => vi.fn<(ctx: JobContext) => Promise<JobResult>>());
+const loadJobHistoryMock = vi.hoisted(() => vi.fn().mockReturnValue([]));
+const appendJobHistoryMock = vi.hoisted(() => vi.fn());
+const stateDirMock = vi.hoisted(() => vi.fn().mockReturnValue('/data/state'));
 
 vi.mock('node-cron', () => ({ default: { schedule: scheduleMock } }));
 vi.mock('../src/lib/telegram.js', () => ({ send: sendMock }));
 vi.mock('../src/lib/gemini.js', () => ({ humanize: humanizeMock }));
 vi.mock('../src/lib/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+vi.mock('../src/lib/state.js', () => ({
+  loadJobHistory: loadJobHistoryMock,
+  appendJobHistory: appendJobHistoryMock,
+  stateDir: stateDirMock,
 }));
 vi.mock('../src/jobs/index.js', () => ({
   enabledJob: {
@@ -35,6 +43,7 @@ const fakeJob = {
   id: 'fake-job',
   description: 'Fake job for dispatch tests',
   schedule: '0 7 * * *',
+  timezone: 'UTC',
   enabled: true,
   execute: executeMock,
 };
@@ -83,6 +92,7 @@ describe('formatError', () => {
 describe('dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    loadJobHistoryMock.mockReturnValue([]);
   });
 
   it('sends content directly when no summarize', async () => {
@@ -120,6 +130,86 @@ describe('dispatch', () => {
     executeMock.mockResolvedValue({ content: 'raw output' });
     sendMock.mockRejectedValue(new Error('telegram down'));
     await expect(dispatch(fakeJob)).resolves.not.toThrow();
+  });
+});
+
+describe('dispatch — job history', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    loadJobHistoryMock.mockReturnValue([]);
+    sendMock.mockResolvedValue(undefined);
+    humanizeMock.mockResolvedValue('Humanized message');
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-08T12:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('passes this job\'s own history from loadJobHistory into ctx.history', async () => {
+    const priorHistory: JobHistoryEntry[] = [{ date: '2026-08-07', content: 'yesterday' }];
+    loadJobHistoryMock.mockReturnValue(priorHistory);
+    executeMock.mockResolvedValue({ content: 'raw output' });
+
+    await dispatch(fakeJob);
+
+    expect(loadJobHistoryMock).toHaveBeenCalledWith('/data/state', 'fake-job');
+    expect(executeMock).toHaveBeenCalledWith({ history: priorHistory });
+  });
+
+  it('persists the sent content and metadata after a successful send', async () => {
+    executeMock.mockResolvedValue({ content: 'raw output', metadata: { flagged: ['A'] } });
+
+    await dispatch(fakeJob);
+
+    expect(appendJobHistoryMock).toHaveBeenCalledWith('/data/state', 'fake-job', {
+      date: '2026-08-08',
+      content: 'raw output',
+      metadata: { flagged: ['A'] },
+    });
+  });
+
+  it('persists the Gemini-humanized text, not the raw summarize.content', async () => {
+    executeMock.mockResolvedValue({
+      summarize: { content: 'raw data', prompt: 'Be friendly', fallback: 'fallback msg' },
+    });
+
+    await dispatch(fakeJob);
+
+    expect(appendJobHistoryMock).toHaveBeenCalledWith(
+      '/data/state',
+      'fake-job',
+      expect.objectContaining({ content: 'Humanized message' }),
+    );
+  });
+
+  it('persists the fallback text when Gemini fails', async () => {
+    executeMock.mockResolvedValue({
+      summarize: { content: 'raw data', prompt: 'Be friendly', fallback: 'fallback msg' },
+    });
+    humanizeMock.mockRejectedValue(new Error('503 Service Unavailable'));
+
+    await dispatch(fakeJob);
+
+    expect(appendJobHistoryMock).toHaveBeenCalledWith(
+      '/data/state',
+      'fake-job',
+      expect.objectContaining({ content: 'fallback msg' }),
+    );
+  });
+
+  it('does not persist history when job.execute() rejects', async () => {
+    executeMock.mockRejectedValue(new Error('network error'));
+    await dispatch(fakeJob);
+    expect(appendJobHistoryMock).not.toHaveBeenCalled();
+  });
+
+  it('does not persist history when telegram.send() rejects', async () => {
+    executeMock.mockResolvedValue({ content: 'raw output' });
+    sendMock.mockRejectedValue(new Error('telegram down'));
+    await dispatch(fakeJob);
+    expect(appendJobHistoryMock).not.toHaveBeenCalled();
   });
 });
 

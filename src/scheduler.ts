@@ -3,6 +3,7 @@ import * as jobs from './jobs/index.js';
 import { send } from './lib/telegram.js';
 import { humanize } from './lib/gemini.js';
 import { logger } from './lib/logger.js';
+import { appendJobHistory, loadJobHistory, stateDir } from './lib/state.js';
 import type { Job } from './types.js';
 
 type NodeError = Error & { code?: string; cause?: unknown };
@@ -20,11 +21,18 @@ export function formatError(err: unknown): string {
   return parts.length > 0 ? parts.join(': ') : String(err);
 }
 
+/** Calendar date in the given IANA timezone, as YYYY-MM-DD. */
+function todayIn(timezone: string): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: timezone });
+}
+
 /** Returns the text that was sent, or null if the job failed. */
 export async function dispatch(job: Job): Promise<string | null> {
   logger.info('scheduler', `${job.id} fired`);
+  const dir = stateDir();
   try {
-    const result = await job.execute();
+    const history = loadJobHistory(dir, job.id);
+    const result = await job.execute({ history });
 
     let text: string;
     if ('summarize' in result) {
@@ -40,6 +48,14 @@ export async function dispatch(job: Job): Promise<string | null> {
 
     await send(text);
     logger.info('scheduler', `${job.id} sent | ${text.length} chars`);
+
+    const timezone = job.timezone ?? process.env.TZ ?? 'UTC';
+    appendJobHistory(dir, job.id, {
+      date: todayIn(timezone),
+      content: text,
+      metadata: result.metadata,
+    });
+
     return text;
   } catch (err) {
     logger.error('scheduler', `${job.id} failed: ${formatError(err)}`);

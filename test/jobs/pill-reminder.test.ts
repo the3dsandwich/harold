@@ -11,7 +11,7 @@ describe('pillReminder job', () => {
   });
 
   it('execute returns the reminder message', async () => {
-    const result = await pillReminder.execute();
+    const result = await pillReminder.execute({ history: [] });
     expect('content' in result).toBe(true);
     if (!('content' in result)) return;
     expect(result.content).toBe('💊 Time to take your pill!');
