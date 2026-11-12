@@ -21,20 +21,25 @@ services:
     volumes:
       - state:${STATE_DIR:-/data/state}
     labels:
+      - com.centurylinklabs.watchtower.enable=true
       - com.centurylinklabs.watchtower.scope=harold
     restart: unless-stopped
 
+
   watchtower:
-    image: containrrr/watchtower:1.7.1
-    container_name: harold-watchtower
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: --scope harold --schedule "${WATCHTOWER_SCHEDULE:-@hourly}"
+    image: nickfedor/watchtower:1.24.0
+    container_name: watchtower-harold
     environment:
       - TZ=${TZ:-Asia/Taipei}
-      # Watchtower 1.7.1 negotiates Docker API v1.25 by default, which Docker
-      # Engine 26+ rejects (minimum is v1.44). Pinning here bypasses negotiation.
-      - DOCKER_API_VERSION=1.44
+      - WATCHTOWER_SCOPE=harold
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=60
+    labels:
+      - com.centurylinklabs.watchtower.scope=harold
+      - com.centurylinklabs.watchtower.enable=false
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
 volumes:
