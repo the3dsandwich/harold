@@ -5,7 +5,7 @@ import {
   longDurationSignal,
   severity,
   selectTopDips,
-  recentlyFlaggedCategories,
+  consecutiveNotificationDays,
   type Fund,
   type CategoryData,
 } from '../../src/jobs/fund-dip-watch.js';
@@ -127,71 +127,60 @@ describe('selectTopDips', () => {
   };
 
   it('excludes categories with no viable leader', () => {
-    const picks = selectTopDips(categories, new Set());
+    const picks = selectTopDips(categories);
     expect(picks.some((p) => p.category === 'India Equity')).toBe(false);
   });
 
   it('excludes candidates below the dip threshold', () => {
-    const picks = selectTopDips(categories, new Set());
+    const picks = selectTopDips(categories);
     expect(picks.some((p) => p.category === 'Global Equity')).toBe(false); // only -2%
   });
 
   it('sorts most severe first', () => {
-    const picks = selectTopDips(categories, new Set());
+    const picks = selectTopDips(categories);
     expect(picks.map((p) => p.category)).toEqual(['US Large Cap', 'Sector - Energy', 'Sector - Technology']);
   });
 
   it('respects the requested count', () => {
-    const picks = selectTopDips(categories, new Set(), 2);
+    const picks = selectTopDips(categories, 2);
     expect(picks).toHaveLength(2);
   });
 
-  it('excludes categories already flagged recently', () => {
-    const picks = selectTopDips(categories, new Set(['US Large Cap']));
-    expect(picks.some((p) => p.category === 'US Large Cap')).toBe(false);
-    expect(picks[0].category).toBe('Sector - Energy');
-  });
 });
 
-describe('recentlyFlaggedCategories', () => {
-  const entry = (date: string, flagged: string[]): JobHistoryEntry => ({
-    date,
-    content: 'x',
-    metadata: { flagged },
+describe('consecutiveNotificationDays', () => {
+  const entry = (date: string, fundId: string, days: number): JobHistoryEntry => ({
+    date, content: 'sent', metadata: { appearances: [{ fundId, days }] },
   });
 
-  it('returns an empty set for empty history', () => {
-    expect(recentlyFlaggedCategories([], '2026-08-08').size).toBe(0);
+  it('starts at one with empty or category-only legacy history', () => {
+    expect(consecutiveNotificationDays([], '2026-08-08', 'us')).toBe(1);
+    expect(consecutiveNotificationDays([
+      { date: '2026-08-07', content: 'old', metadata: { flagged: ['US Large Cap'] } },
+    ], '2026-08-08', 'us')).toBe(1);
   });
 
-  it('includes categories flagged within the window', () => {
-    const history = [entry('2026-08-06', ['US Large Cap'])];
-    const flagged = recentlyFlaggedCategories(history, '2026-08-08');
-    expect(flagged.has('US Large Cap')).toBe(true);
+  it('continues across month boundaries and beyond retained history length', () => {
+    expect(consecutiveNotificationDays([entry('2026-07-31', 'us', 500)], '2026-08-01', 'us')).toBe(501);
   });
 
-  it('excludes categories flagged exactly 7 days ago or earlier', () => {
-    const history = [entry('2026-08-01', ['US Large Cap'])]; // exactly 7 days before 08-08
-    const flagged = recentlyFlaggedCategories(history, '2026-08-08');
-    expect(flagged.has('US Large Cap')).toBe(false);
+  it('resets after a missed calendar day or a change of fund', () => {
+    expect(consecutiveNotificationDays([entry('2026-08-06', 'us', 5)], '2026-08-08', 'us')).toBe(1);
+    expect(consecutiveNotificationDays([entry('2026-08-07', 'other', 5)], '2026-08-08', 'us')).toBe(1);
   });
 
-  it('includes a category flagged 6 days ago', () => {
-    const history = [entry('2026-08-02', ['US Large Cap'])]; // 6 days before 08-08
-    const flagged = recentlyFlaggedCategories(history, '2026-08-08');
-    expect(flagged.has('US Large Cap')).toBe(true);
+  it('does not increment same-day reruns or use future history', () => {
+    expect(consecutiveNotificationDays([
+      entry('2026-08-07', 'us', 4), entry('2026-08-08', 'us', 5),
+    ], '2026-08-08', 'us')).toBe(5);
+    expect(consecutiveNotificationDays([entry('2026-08-08', 'us', 1)], '2026-08-08', 'us')).toBe(1);
+    expect(consecutiveNotificationDays([entry('2026-08-09', 'us', 9)], '2026-08-08', 'us')).toBe(1);
   });
 
-  it('unions flagged categories across multiple days in the window', () => {
-    const history = [entry('2026-08-06', ['A']), entry('2026-08-07', ['B'])];
-    const flagged = recentlyFlaggedCategories(history, '2026-08-08');
-    expect(flagged.has('A')).toBe(true);
-    expect(flagged.has('B')).toBe(true);
-  });
-
-  it('handles entries with no metadata gracefully', () => {
-    const history: JobHistoryEntry[] = [{ date: '2026-08-07', content: 'x' }];
-    expect(() => recentlyFlaggedCategories(history, '2026-08-08')).not.toThrow();
+  it('ignores malformed appearance metadata', () => {
+    const history = [{ date: '2026-08-07', content: 'x',
+      metadata: { appearances: [null, { fundId: 'us', days: -2 }] } }];
+    expect(consecutiveNotificationDays(history, '2026-08-08', 'us')).toBe(1);
   });
 });
 
@@ -203,6 +192,9 @@ describe('fundDipWatch job', () => {
   }
 
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-08T12:00:00Z'));
+    vi.stubEnv('TZ', 'Asia/Taipei');
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string) => {
@@ -219,6 +211,8 @@ describe('fundDipWatch job', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     delete process.env.FUND_ANALYSIS_URL;
   });
@@ -249,33 +243,42 @@ describe('fundDipWatch job', () => {
 
   it('returns metadata.flagged with the picked category names', async () => {
     const result = await fundDipWatch.execute({ history: [] });
-    expect(result.metadata).toEqual({ flagged: ['US Large Cap', 'Sector - Energy'] });
+    expect(result.metadata).toEqual({ flagged: ['US Large Cap', 'Sector - Energy'],
+      appearances: [{ fundId: 'us', days: 1 }, { fundId: 'energy', days: 1 }] });
   });
 
-  it('excludes categories flagged within the last week via ctx.history', async () => {
-    const history: JobHistoryEntry[] = [
-      { date: '2026-08-07', content: 'prior run', metadata: { flagged: ['US Large Cap'] } },
-    ];
+  it('includes previously notified funds daily and reports separate streaks', async () => {
+    const history: JobHistoryEntry[] = [{
+      date: '2026-08-07', content: 'prior run',
+      metadata: { flagged: ['US Large Cap'], appearances: [{ fundId: 'us', days: 3 }] },
+    }];
     const result = await fundDipWatch.execute({ history });
-    expect('content' in result).toBe(true);
-    if (!('content' in result)) return;
-    expect(result.content).not.toContain('US Large Cap');
-    expect(result.metadata).toEqual({ flagged: ['Sector - Energy'] });
+    if (!('content' in result)) throw new Error('Expected plain notification');
+    expect(result.content).toContain('US Large Cap');
+    expect(result.content).toContain('4 consecutive days');
+    expect(result.content).toContain('1 consecutive day');
+    expect(result.metadata?.appearances).toEqual([
+      { fundId: 'us', days: 4 }, { fundId: 'energy', days: 1 },
+    ]);
   });
 
-  it('sends a "nothing new" message and empty flagged metadata when everything is deduped', async () => {
-    const history: JobHistoryEntry[] = [
-      {
-        date: '2026-08-07',
-        content: 'prior run',
-        metadata: { flagged: ['US Large Cap', 'Sector - Energy'] },
-      },
-    ];
-    const result = await fundDipWatch.execute({ history });
-    expect('content' in result).toBe(true);
-    if (!('content' in result)) return;
-    expect(result.content).toContain('Nothing new');
-    expect(result.metadata).toEqual({ flagged: [] });
+  it('uses local notification dates rather than snapshot date or UTC date', async () => {
+    vi.setSystemTime(new Date('2026-08-08T17:00:00Z'));
+    const result = await fundDipWatch.execute({ history: [{
+      date: '2026-08-08', content: 'sent',
+      metadata: { appearances: [{ fundId: 'us', days: 8 }] },
+    }] });
+    expect(result.metadata?.appearances).toContainEqual({ fundId: 'us', days: 9 });
+  });
+
+  it('reports no qualifying funds without the former cooldown wording', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
+      url.includes('manifest.json') ? manifestResponse : snapshotResponse({}),
+    )));
+    const result = await fundDipWatch.execute({ history: [] });
+    if (!('content' in result)) throw new Error('Expected plain notification');
+    expect(result.content).toContain('No category leader meets the dip threshold today');
+    expect(result.metadata).toEqual({ flagged: [], appearances: [] });
   });
 
   it('throws when the manifest request fails', async () => {

@@ -88,18 +88,15 @@ export interface Candidate {
 const DIP_THRESHOLD_PCT = -10;
 const MAX_CANDIDATES = 3;
 
-/** Picks up to `count` category leaders whose severity crosses the dip threshold, worst first, skipping excluded categories. */
+/** Picks up to `count` category leaders whose severity crosses the dip threshold, worst first. */
 export function selectTopDips(
   categories: Record<string, CategoryData>,
-  excludedCategories: Set<string>,
   count = MAX_CANDIDATES,
   thresholdPct = DIP_THRESHOLD_PCT,
 ): Candidate[] {
   const candidates: Candidate[] = [];
 
   for (const [category, data] of Object.entries(categories)) {
-    if (excludedCategories.has(category)) continue;
-
     const leader = pickCategoryLeader(data.funds);
     if (!leader) continue;
 
@@ -113,32 +110,40 @@ export function selectTopDips(
   return candidates.slice(0, count);
 }
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
-/** Categories flagged in any history entry within the last `windowDays` (relative to `today`, exclusive of the boundary day). */
-export function recentlyFlaggedCategories(
-  history: JobHistoryEntry[],
-  today: string,
-  windowDays = 7,
-): Set<string> {
-  const todayMs = new Date(today).getTime();
-  const windowMs = windowDays * (WEEK_MS / 7);
-  const flagged = new Set<string>();
-
-  for (const entry of history) {
-    const ageMs = todayMs - new Date(entry.date).getTime();
-    if (ageMs < 0 || ageMs >= windowMs) continue;
-
-    const list = (entry.metadata?.flagged as string[] | undefined) ?? [];
-    for (const category of list) flagged.add(category);
-  }
-
-  return flagged;
+interface FundAppearance {
+  fundId: string;
+  days: number;
 }
 
-function formatCandidate(c: Candidate): string {
+/** Calendar-day streak of actual notifications, using the scheduler's local date. */
+export function consecutiveNotificationDays(
+  history: JobHistoryEntry[],
+  today: string,
+  fundId: string,
+): number {
+  const yesterday = new Date(today + 'T00:00:00Z');
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const previousDate = yesterday.toISOString().slice(0, 10);
+  const appearance = (date: string): FundAppearance | undefined => {
+    const entries = history.find((entry) => entry.date === date)?.metadata?.appearances;
+    if (!Array.isArray(entries)) return undefined;
+    return entries.find((entry: unknown): entry is FundAppearance => {
+      if (typeof entry !== 'object' || entry === null) return false;
+      const item = entry as Partial<FundAppearance>;
+      return item.fundId === fundId && Number.isSafeInteger(item.days) && item.days! > 0;
+    });
+  };
+  const previous = appearance(previousDate);
+  if (previous) return previous.days + 1;
+  // Same-day retries must not increment an already persisted notification count.
+  return appearance(today)?.days ?? 1;
+}
+
+function formatCandidate(c: Candidate, days: number): string {
   const { fund, severity: sev, category } = c;
   const lines = [`${category} — ${fund.name} (${fund.company})`];
+
+  lines.push('  In this notification for ' + days + ' consecutive ' + (days === 1 ? 'day' : 'days'));
 
   if (fund.pctOffHigh != null) {
     const since = fund.navHighDate ? ` (high on ${fund.navHighDate})` : '';
@@ -173,22 +178,23 @@ export const fundDipWatch: Job = {
     if (!snapshotRes.ok) throw new Error(`fund-analysis snapshot error: ${snapshotRes.status}`);
     const snapshot = (await snapshotRes.json()) as FundSnapshot;
 
-    // This job has no explicit `timezone`, so the scheduler dates its persisted
-    // history using process.env.TZ ?? 'UTC' — match that here so the 7-day
-    // dedup window lines up with what's actually in ctx.history.
+    // Match the scheduler's persisted history dates, including across DST.
     const today = new Date().toLocaleDateString('en-CA', { timeZone: process.env.TZ ?? 'UTC' });
-    const excluded = recentlyFlaggedCategories(ctx.history, today);
-    const picks = selectTopDips(snapshot.categories, excluded);
+    const picks = selectTopDips(snapshot.categories);
+    const appearances = picks.map((pick) => ({
+      fundId: pick.fund.id,
+      days: consecutiveNotificationDays(ctx.history, today, pick.fund.id),
+    }));
 
     const header = `📉 Fund Dip Watch (${manifest.latest})`;
     const content =
       picks.length > 0
-        ? [header, '', ...picks.map(formatCandidate)].join('\n\n')
-        : `${header}\n\nNothing new today — no category leader crossed the dip threshold outside what's already been flagged this week.`;
+        ? [header, '', ...picks.map((pick, index) => formatCandidate(pick, appearances[index].days))].join('\n\n')
+        : `${header}\n\nNo category leader meets the dip threshold today.`;
 
     return {
       content,
-      metadata: { flagged: picks.map((p) => p.category) },
+      metadata: { flagged: picks.map((p) => p.category), appearances },
     };
   },
 };

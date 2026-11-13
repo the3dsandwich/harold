@@ -4,5 +4,4 @@
  */
 export { morningGreeting } from './morning-greeting.js';
 export { currencyRates } from './currency-rates.js';
-export { pillReminder } from './pill-reminder.js';
 export { fundDipWatch } from './fund-dip-watch.js';
