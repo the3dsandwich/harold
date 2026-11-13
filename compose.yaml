@@ -1,5 +1,12 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   harold:
+    logging: *default-logging
     image: ${IMAGE:-harold}
     container_name: harold
     build:
@@ -23,6 +30,7 @@ services:
     - com.centurylinklabs.watchtower.scope=harold
     restart: unless-stopped
   watchtower:
+    logging: *default-logging
     image: nickfedor/watchtower:1.24.0
     container_name: watchtower-harold
     environment:
