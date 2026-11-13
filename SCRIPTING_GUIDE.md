@@ -98,10 +98,10 @@ export type JobResult = (
 ```
 
 Most jobs don't need `ctx` at all — if your job's output only depends on today's data, you can declare
-`execute(): Promise<JobResult>` with no parameter (see `morning-greeting.ts`, `currency-rates.ts`,
-`pill-reminder.ts`). Only reach for `ctx.history` / `JobResult.metadata` when a job genuinely needs to
-remember something across runs — see `fund-dip-watch.ts` for an example that dedupes notifications
-against its own history.
+`execute(): Promise<JobResult>` with no parameter (see `morning-greeting.ts` and `currency-rates.ts`).
+Only reach for `ctx.history` / `JobResult.metadata` when a job needs to
+remember something across runs — see `fund-dip-watch.ts` for an example that tracks consecutive daily notifications
+for each fund using successfully sent history.
 
 ---
 
@@ -220,3 +220,15 @@ describe('morningGreeting', () => {
 | `* * * * *`   | Every minute (useful for testing) |
 
 All times are interpreted in the `TZ` environment variable (default: `Asia/Taipei`).
+
+## Fund Dip Watch notifications
+
+The daily 08:00 job reports up to three category-leading funds meeting the existing
+-10% dip threshold, ordered by severity. Previously reported funds remain eligible
+every day. Each entry reports consecutive calendar days in the notification, keyed
+by fund ID and using the same TZ as scheduler history. A day without that fund in
+a successfully sent notification resets its streak. Same-day reruns do not add a
+day. Counts are carried in metadata so they can exceed the history retention size.
+
+Legacy history contains category names rather than fund IDs, so per-fund streaks
+start at one after this change. The pill-reminder job has been retired.
